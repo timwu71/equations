@@ -34,6 +34,7 @@ def db_insert(room, game_info):
 def db_deserialize(db_result):
     """Translate db result to game_info dict. Kinda dupe down there."""
     game_info = {
+        "connections": 0,
         "game_started": db_result.cube_index is not None,
         "game_finished": db_result.ended,
         "players": db_result.players,

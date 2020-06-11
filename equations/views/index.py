@@ -64,6 +64,7 @@ def create_game():
     # This is a new game room and players joins as player by default
     assert game_nonce not in rooms_info
     rooms_info[game_nonce] = {
+        "connections": 0,
         "game_started": False,
         "game_finished": False,
         "players": [name],
@@ -76,6 +77,7 @@ def create_game():
             "latest_socketids": {},
             "gamerooms": set(),
             "room_modes": {},
+            "room_connection_count": {},
         }
     else:
         assert game_nonce not in user_info[name]["latest_socketids"].keys()
@@ -100,6 +102,10 @@ def get_game_from_db(room_id):
     if game_info[0].ended and room_id not in rooms_info:
         rooms_info[room_id] = db_deserialize(game_info[0])
 
+    # Here, room can possibly still not be in rooms_info if game_info['ended'] is 0. 
+    # If the game has started, then if the room is not in the rooms_info map, then 
+    # by invariant the game must have ended (see on_disconnect in connections.py).
+
     return True
 
 def initialize_user_info_elt(name, room):
@@ -109,10 +115,46 @@ def initialize_user_info_elt(name, room):
             "latest_socketids": {},
             "gamerooms": set(),
             "room_modes": {},
+            "room_connection_count": {},
         }
+        print("Created new user_info: ", user_info)
 
     if room not in user_info[name]["latest_socketids"]: 
         user_info[name]["latest_socketids"][room] = []
+    
+    # if room not in user_info[name]["room_modes"]:
+    #     user_info[name]["room_modes"][room] = equations.data.REJOINED_MODE  # default
+    #     print("Set room mode for ", name, " in room ", room)
+    #     print(user_info)
+    
+    print("Accessing user_info for conn ct: ", user_info)
+    if room not in user_info[name]["room_connection_count"]:
+        user_info[name]["room_connection_count"][room] = 0
+
+
+def initialize_room_info_elt(room):
+    """Create an entry for a room in the room_info map if necessary."""
+    if room not in rooms_info:
+        print("Was not here before")
+        rooms_info[room] = {
+            "connections": 0,
+            "game_started": False,
+            "game_finished": False,
+            "players": [],
+            "spectators": [],
+            "sockets": [],
+            # "p1scores": [],
+            # "p2scores": [],
+            # "p3scores": [],
+            # "cube_index": [],
+            # "resources": [],
+            # "goal": [],
+            # "required": [],
+            # "permitted": [],
+            # "forbidden": [],
+            # "turn": None, # -1?
+        }
+    print("Rooms info: ", rooms_info)
 
 @equations.app.route("/join/", methods=['POST'])
 def join_game():
@@ -129,17 +171,7 @@ def join_game():
         flask.flash(f"The Room ID you entered ({room}) does not exist!")
         return flask.redirect(flask.url_for('show_index'))
     
-    # This if is true when game_info['ended'] is 0. If the game has started, then
-    # if the room is not in the rooms_info map, then by invariant the game must
-    # have ended (see on_disconnect in connections.py).
-    if room not in rooms_info:
-        rooms_info[room] = {
-            "game_started": False,
-            "game_finished": False,
-            "players": [],
-            "spectators": [],
-            "sockets": [],
-        }
+    initialize_room_info_elt(room)
 
     if flask.request.form['join'] == "Join as Player":
         if not (name in rooms_info[room]["players"] and not rooms_info[room]["game_finished"]):
@@ -191,20 +223,26 @@ def show_game(nonce):
     name = flask.session['username']
     room = nonce
 
+    print("Got to show_game")
+    
     MapsLock()
-    if not (room in rooms_info and name in user_info and room in user_info[name]['room_modes']):
+    initialize_user_info_elt(name, room)
+
+    print(rooms_info)
+    print(user_info)
+
+    if not (room in rooms_info and room in user_info[name]['room_modes']):
         if room not in rooms_info:
             if not get_game_from_db(room):
                 flask.flash(f"The Room you tried to visit (ID of {room}) does not exist!")
                 return flask.redirect(flask.url_for('show_index'))
         
+        print("Checking to see if kick: ", rooms_info)
         if room not in rooms_info or not rooms_info[room]['game_started']:
             flask.flash(f"The Room you tried to visit (ID of {room}) has not started its game yet. "
                          "Please join by clicking \"Join Existing Game\" below and specifying whether "
                          "you would like to join as a player or a spectator.")
             return flask.redirect(flask.url_for('show_index'))
-
-        initialize_user_info_elt(name, room)
 
         if name in rooms_info[room]['players'] and not rooms_info[room]['game_finished']:
             user_info[name]["gamerooms"].add(room)
@@ -212,6 +250,12 @@ def show_game(nonce):
         else:
             rooms_info[room]["spectators"].append(name)
             user_info[name]["room_modes"][room] = equations.data.SPECTATOR_MODE
+
+    initialize_room_info_elt(room)
+
+    print("Gotta here: ", rooms_info)
+    rooms_info[room]["connections"] += 1
+    user_info[name]["room_connection_count"][room] += 1
 
     context = {
         "nonce": nonce,
