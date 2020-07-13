@@ -29,10 +29,12 @@ CREATE TABLE games(
 
 CREATE TABLE tournaments (
 	tourney_id int unsigned NOT NULL,
+	is_private tinyint DEFAULT 0,
 	division VARCHAR(20) NOT NULL,
   	table_id int unsigned NOT NULL,
-	seat_id int unsigned NOT NULL,
-	player_username VARCHAR(20) NOT NULL,
+	p1 VARCHAR(20) DEFAULT NULL,
+	p2 VARCHAR(20) DEFAULT NULL,
+	p3 VARCHAR(20) DEFAULT NULL,
 	judge_call tinyint DEFAULT 0,
-	PRIMARY KEY (tourney_id, division,table_id, seat_id)
-)
+	PRIMARY KEY (tourney_id, division, table_id)
+);
