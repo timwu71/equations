@@ -26,3 +26,13 @@ CREATE TABLE games(
     created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(nonce)
 );
+
+CREATE TABLE tournaments (
+	tourney_id int unsigned NOT NULL,
+	division VARCHAR(20) NOT NULL,
+  	table_id int unsigned NOT NULL,
+	seat_id int unsigned NOT NULL,
+	player_username VARCHAR(20) NOT NULL,
+	judge_call tinyint DEFAULT 0,
+	PRIMARY KEY (tourney_id, division,table_id, seat_id)
+)
